@@ -1,29 +1,55 @@
 ---
-title: "Project"
+title: "Project: Sexual Reproduction Capabilities of Yeast P. kluyveri, N. populi, and N. holstii"
 format: html
 editor: visual
 ---
 
-Libraries
+# Libraries
+
+The libraries being used are as follows:
+
+Rqc: early quality evaluation
 
 ```{r}
-
+lapply(c("Rqc", "fastqcr"), library, character.only = T)
 ```
 
-File Declaration
+# File Downloads and Declaration
 
 Ensure the files being processed are accessible in your working directory
 
 ```{r}
-#| echo:false
-p_kluyveri <-
-n_populi <-
-n_holstii <-
+p_kluyveri <- "data/raw_data/p_kluyveri"
+n_populi <- "data/raw_data/n_populi"
+n_holstii <- "data/raw_data/n_holstii"
+
+```
+
+# QC
+
+Perform early quality-control of reads to ensure that they are usable for further processing. Done by checking read quality using Rqc charts.
+
+```{r}
+#| echo: false
+rqc_qc <- rqc(path = "data/raw_data", pattern = "", openBrowser = FALSE, outdir = "outputs")
+
 ```
 
 ```{r}
 #| echo: false
-2 * 2
+rqcCycleQualityBoxPlot(rqc_qc)
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+```{r}
+#| echo: false
+rqcCycleBaseCallsLinePlot(rqc_qc)
+```
+
+```{r}
+#| echo: false
+rqcReadFrequencyPlot(rqc_qc)
+```
+
+# Assembly
+
+# Annotation
