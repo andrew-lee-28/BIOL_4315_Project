@@ -1,0 +1,29 @@
+---
+title: "Project"
+format: html
+editor: visual
+---
+
+Libraries
+
+```{r}
+
+```
+
+File Declaration
+
+Ensure the files being processed are accessible in your working directory
+
+```{r}
+#| echo:false
+p_kluyveri <-
+n_populi <-
+n_holstii <-
+```
+
+```{r}
+#| echo: false
+2 * 2
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
