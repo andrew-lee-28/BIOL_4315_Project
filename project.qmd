@@ -11,32 +11,50 @@ The libraries being used are as follows:
 Rqc: early quality evaluation
 
 ```{r}
-lapply(c("Rqc", "fastqcr"), library, character.only = T)
+lapply(c("Rqc", "fastqcr", "stringr"), library, character.only = T)
 ```
 
 # Non-R Tools
 
-The following tools from conda and Docker are used
+The following tools from conda and Docker are used. Sadly, running Python commands from within R is unideal, so this pipeline will frequently require manually running commands in terminal. However, this script will generate the lines that are required for easy copy and paste.
+
+Sequali is used
+
+funannotate is ran within a Docker container to prevent dependency conflicts.
 
 # File Downloads and Declaration
 
 Ensure the files being processed are accessible in your working directory
 
 ```{r}
-p_kluyveri <- "data/raw_data/p_kluyveri"
-n_populi <- "data/raw_data/n_populi"
-n_holstii <- "data/raw_data/n_holstii"
-
+pathway <- "data/raw_data/"
+p_kluyveri <- paste0(pathway, "pichiaKluyveri.fastq")
+n_populi <- paste0(pathway, "nakazawaeaPopuli.fastq")
+n_holstii <- paste0(pathway, "nakazawaeaHolstii.fastq")
 ```
 
 # QC
 
-Perform early quality-control of reads to ensure that they are usable for further processing. Done by checking read quality using Rqc charts.
+Perform early quality-control of reads to ensure that they are usable for further processing. Done by checking read quality using Rqc charts and sequali reports.
 
 ```{r}
 #| echo: false
-rqc_qc <- rqc(path = "data/raw_data", pattern = "", openBrowser = FALSE, outdir = "outputs")
+#Note that the files must be in fastq.gz format. As such, a loop will ensure all the files are in gzipped first
+tryCatch({
+  for(file in list.files(pathway)){
+    if(!file.exists(paste0(file, ".gz"))){
+      system2(command = 'gzip', args = c('-k', paste0(pathway, file)), stdout = TRUE, stderr = TRUE)
+    }
+  }
+  
+}, error = function(e){
+  paste("gzipping failed: ", e$message)
+}
+)
+```
 
+```{r}
+rqc_qc <- rqc(path = pathway, pattern = ".fastq.gz", openBrowser = FALSE, outdir = "outputs")
 ```
 
 ```{r}
@@ -54,6 +72,39 @@ rqcCycleBaseCallsLinePlot(rqc_qc)
 rqcReadFrequencyPlot(rqc_qc)
 ```
 
+```{r}
+#GENERATES COMMANDS. PLEASE RUN THESE COMMANDS IN THE APPROPRIATE CONDA ENVIRONMENT
+dir.create('outputs/sequali_reports', showWarnings = FALSE)
+for(file in list.files(pathway)){
+  if(str_detect(file, ".gz$")){
+    print(paste0("sequali --outdir outputs/sequali_reports ", pathway, file))
+  }
+}
+```
+
+```{r}
+```
+
+```{r}
+
+```
+
+Preprocessing
+
 # Assembly
 
 # Annotation
+
+```{r}
+# Define reusable variables
+IMAGE="nextgenusfs/funannotate:v1.8.15"
+PLATFORM="--platform linux/amd64"
+CPUS=8
+INPUT="data/assembly_polished.fasta"
+SPECIES="Nakazawaea populi"   # e.g., "Pichia kluyveri" or "Hanseniaspora uvarum"
+STRAIN="HJ1"        # e.g., "RASPBERRY" or "NK1"
+```
+
+```{r}
+
+```
