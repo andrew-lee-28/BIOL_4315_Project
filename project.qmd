@@ -11,14 +11,14 @@ The libraries being used are as follows:
 Rqc: early quality evaluation
 
 ```{r}
-lapply(c("Rqc", "fastqcr", "stringr"), library, character.only = T)
+lapply(c("Rqc", "stringr", "Quasr"), library, character.only = T)
 ```
 
 # Non-R Tools
 
 The following tools from conda and Docker are used. Sadly, running Python commands from within R is unideal, so this pipeline will frequently require manually running commands in terminal. However, this script will generate the lines that are required for easy copy and paste.
 
-Sequali is used
+Sequali is used to generate reports on raw data files.
 
 funannotate is ran within a Docker container to prevent dependency conflicts.
 
@@ -36,6 +36,8 @@ n_holstii <- paste0(pathway, "nakazawaeaHolstii.fastq")
 # QC
 
 Perform early quality-control of reads to ensure that they are usable for further processing. Done by checking read quality using Rqc charts and sequali reports.
+
+## RQC
 
 ```{r}
 #| echo: false
@@ -72,6 +74,8 @@ rqcCycleBaseCallsLinePlot(rqc_qc)
 rqcReadFrequencyPlot(rqc_qc)
 ```
 
+## Sequali
+
 ```{r}
 #GENERATES COMMANDS. PLEASE RUN THESE COMMANDS IN THE APPROPRIATE CONDA ENVIRONMENT
 dir.create('outputs/sequali_reports', showWarnings = FALSE)
@@ -89,7 +93,7 @@ for(file in list.files(pathway)){
 
 ```
 
-Preprocessing
+# Preprocessing
 
 # Assembly
 
