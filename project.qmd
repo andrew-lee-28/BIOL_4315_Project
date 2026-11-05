@@ -20,14 +20,17 @@ The following tools from conda and Docker are used. Sadly, running Python comman
 
 Sequali is used to generate reports on raw data files.
 
+ragatag is used to scaffold contigs together
+
 funannotate is ran within a Docker container to prevent dependency conflicts.
 
 # File Downloads and Declaration
 
-Ensure the files being processed are accessible in your working directory
+Ensure the files being processed are accessible in your working directory. When working with data files, please ensure they are named in the format 'genusSpecies.fastq', and similarly for reference files, please name them in the format of 'genusSpecies_genomic.fna' from the default NCBI naming scheme. Alternatively, simply keep both the reads file and corresponding reference file named similarly to the above.
 
 ```{r}
 pathway <- "data/raw_data"
+references <- 'data/references'
 ```
 
 # QC
@@ -157,8 +160,8 @@ dir.create('outputs/medaka/round2', showWarnings = FALSE)
 for(file in list.files(pathway)){
   if(str_detect(file, ".gz$")){
     file_name <- str_remove(file, '.fastq.gz')
-    dir.create(paste0('outputs/medaka/round1/', file_name))
-    print(paste0('medaka_consensus -i data/raw_data/', file, ' -d outputs/flye_outputs/', file_name, '/assembly.fasta'))
+    dir.create(paste0('outputs/medaka/round1/', file_name), showWarnings = FALSE)
+    print(paste0('medaka_consensus -i data/raw_data/', file, ' -d outputs/flye_outputs/', file_name, '/assembly.fasta -o outputs/medaka/round1/', file_name, ' -t 8'))
   }
 }
 
@@ -166,8 +169,24 @@ for(file in list.files(pathway)){
 for(file in list.files(pathway)){
   if(str_detect(file, ".gz$")){
     file_name <- str_remove(file, '.fastq.gz')
-    dir.create(paste0('outputs/medaka/round2/', file_name))
-    print(paste0('medaka_consensus -i data/raw_data/', file, ' -d outputs/medaka/round1/', file_name, '/consensus.fasta'))
+    dir.create(paste0('outputs/medaka/round2/', file_name), showWarnings = FALSE)
+    print(paste0('medaka_consensus -i data/raw_data/', file, ' -d outputs/medaka/round1/', file_name, '/consensus.fasta -o outputs/medaka/round2/', file_name, ' -t 8'))
+  }
+}
+```
+
+# Scaffold
+
+Using ragtag, scaffold the contigs together
+
+```{r}
+dir.create('outputs/scaffolds', showWarnings = FALSE)
+
+for(file in list.files(pathway)){
+  if(str_detect(file, ".gz$")){
+    file_name <- str_remove(file, '.fastq.gz')
+    dir.create(paste0('outputs/scaffolds/', file_name), showWarnings = FALSE)
+    print(paste0('ragtag.py scaffold ', references, '/', file_name, '_genomic.fna outputs/medaka/round2/', file_name, '/consensus.fasta -o outputs/scaffolds/', file_name))
   }
 }
 ```
@@ -185,7 +204,6 @@ STRAIN="HJ1"        # e.g., "RASPBERRY" or "NK1"
 ```
 
 ```{r}
-
 ```
 
 QUESTIONS
