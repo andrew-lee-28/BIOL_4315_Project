@@ -200,6 +200,7 @@ With busco, ensure that the proper docker container is available to be used. Als
 Note that -f was used to force files to be overwritten. Please be careful with where you store files.
 
 ```{r}
+#pichiaceae_odb12 database can also be considered for the current project
 dir.create('outputs/busco', showWarnings = FALSE)
 for(file in list.files(pathway)){
   if(str_detect(file, ".gz$")){
@@ -210,23 +211,78 @@ for(file in list.files(pathway)){
 }
 ```
 
+\|\|\|Using quast, evaluate the quality of the assembly
+
 ```{r}
+#MIGHT NOT RUN THIS? PROBABLY CAN'T WITHOUT GFF FILE
+dir.create('outputs/quast', showWarnings = FALSE)
+for(file in list.files(pathway)){
+  if(str_detect(file, ".gz$")){
+    file_name <- str_remove(file, '.fastq.gz')
+    dir.create(paste0('outputs/quast/', file_name), showWarnings = FALSE)
+    print(paste0('docker run --rm -v \"$PWD\":/data -w /data quay.io/biocontainers/quast:5.3.0--py313pl5321h5ca1c30_2 quast.py outputs/medaka/round2/', file_name, '/consensus.fasta -r data/references/', file_name, '_genomic.fna -g data/GCF_000146045.2_R64_genomic.gff -o outputs/quast_output'), quote = FALSE)
+  }
+}
 
 ```
 
 # Structural Annotation
 
+Using funannotate, annotate the structure of both the assembly and the non-refseq reference files.
+
 ```{r}
 # Define reusable variables
-IMAGE="nextgenusfs/funannotate:v1.8.15"
-PLATFORM="--platform linux/amd64"
-CPUS=8
-INPUT="data/assembly_polished.fasta"
-SPECIES="Nakazawaea populi"   # e.g., "Pichia kluyveri" or "Hanseniaspora uvarum"
-STRAIN="HJ1"        # e.g., "RASPBERRY" or "NK1"
+IMAGE <- "nextgenusfs/funannotate:v1.8.15"
+PLATFORM <- "--platform linux/amd64"
+CPUS <- 8
+dir.create('outputs/funannotate', showWarnings = FALSE)
+
+#Clean contigs
+dir.create('outputs/funannotate/cleaned_contigs', showWarnings = FALSE)
+for(file in list.files(pathway)){
+  if(str_detect(file, ".gz$")){
+    file_name <- str_remove(file, '.fastq.gz')
+    dir.create(paste0('outputs/funannotate/cleaned_contigs/', file_name), showWarnings = FALSE)
+    print(paste0('docker run -u $(id -u):$(id -g) --rm -v \"$PWD\":/data -w /data ', PLATFORM,  ' ', IMAGE, ' funannotate clean -i outputs/medaka/round2/', file_name, '/consensus.fasta -o outputs/funannotate/cleaned_contigs/', file_name, '/assembly_clean.fasta'), quote = FALSE)
+  }
+}
 ```
 
 ```{r}
+#Sort contigs and standardize header names
+dir.create('outputs/funannotate/sorted_contigs', showWarnings = FALSE)
+for(file in list.files(pathway)){
+  if(str_detect(file, ".gz$")){
+    file_name <- str_remove(file, '.fastq.gz')
+    dir.create(paste0('outputs/funannotate/sorted_contigs/', file_name), showWarnings = FALSE)
+    print(paste0('docker run -u $(id -u):$(id -g) --rm -v \"$PWD\":/data -w /data ', PLATFORM,  ' ', IMAGE, ' funannotate sort -i outputs/funannotate/cleaned_contigs/', file_name, '/assembly_clean.fasta -o outputs/funannotate/sorted_contigs/', file_name, '/assembly_sorted.fasta'), quote = FALSE)
+  }
+}
+```
+
+```{r}
+#Soft-mask repeated elements
+dir.create('outputs/funannotate/masked_contigs', showWarnings = FALSE)
+for(file in list.files(pathway)){
+  if(str_detect(file, ".gz$")){
+    file_name <- str_remove(file, '.fastq.gz')
+    dir.create(paste0('outputs/funannotate/masked_contigs/', file_name), showWarnings = FALSE)
+    print(paste0('docker run -u $(id -u):$(id -g) --rm -v \"$PWD\":/data -w /data ', PLATFORM,  ' ', IMAGE, ' funannotate mask -i outputs/funannotate/sorted_contigs/', file_name, '/assembly_sorted.fasta -o outputs/funannotate/masked_contigs/', file_name, '/assembly_masked.fasta --cpus ', CPUS), quote = FALSE)
+  }
+}
+```
+
+```{r}
+#Predict gene models
+#Please remember to include the specific strain used
+dir.create('outputs/funannotate/predictions', showWarnings = FALSE)
+for(file in list.files(pathway)){
+  if(str_detect(file, ".gz$")){
+    file_name <- str_remove(file, '.fastq.gz')
+    dir.create(paste0('outputs/funannotate/predictions/', file_name), showWarnings = FALSE)
+    print(paste0('docker run -u $(id -u):$(id -g) --rm -v \"$PWD\":/data -w /data ', PLATFORM,  ' ', IMAGE, ' funannotate predict -i outputs/funannotate/masked_contigs/', file_name, '/assembly_masked.fasta -o outputs/funannotate/predictions/', file_name, ' -s ', file_name, ' --strain   --busco_db saccharomycetes --cpus ', CPUS), quote = FALSE)
+  }
+}
 ```
 
 # Functional Annotation
