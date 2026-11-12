@@ -29,7 +29,7 @@ funannotate is ran within a Docker container to prevent dependency conflicts.
 Ensure the files being processed are accessible in your working directory. When working with data files, please ensure they are named in the format 'genusSpecies.fastq', and similarly for reference files, please name them in the format of 'genusSpecies_genomic.fna' from the default NCBI naming scheme. Alternatively, simply keep both the reads file and corresponding reference file named similarly to the above.
 
 ```{r}
-pathway <- "data/raw_data"
+pathway <- "data/raw_data_2026"
 references <- 'data/references'
 ```
 
@@ -55,7 +55,7 @@ tryCatch({
 ```
 
 ```{r}
-rqc_qc <- rqc(path = pathway, pattern = '.fastq.gz', openBrowser = FALSE, outdir = "outputs", workers = 6)
+rqc_qc <- rqc(path = pathway, pattern = '.fastq.gz', openBrowser = FALSE, outdir = 'outputs/', workers = 3)
 ```
 
 ```{r}
@@ -85,7 +85,7 @@ qc_aggregate()
 dir.create('outputs/sequali_reports', showWarnings = FALSE)
 for(file in list.files(pathway)){
   if(str_detect(file, ".gz$")){
-    print(paste0("sequali --outdir outputs/sequali_reports ", pathway, file))
+    print(paste0("sequali --outdir outputs/sequali_reports ", pathway,'/' , file), quote = FALSE)
   }
 }
 ```
@@ -113,7 +113,7 @@ Using QuasR, process the fastq files based on the data obtained above:
 - Remove reads that are too short
 
 ```{r}
-#NOTE: Lpattern used here is an Oxford Nanopore barcode
+#NOTE: Lpattern used here are both Oxford Nanopore barcodes
 fastq_files <- list.files(pathway, pattern = '.fastq.gz', full.names = TRUE)
 trimmed_file_names <- paste0('outputs/trimmed_reads/trimmed_', basename(fastq_files))
 output_file_names <- paste0('outputs/processed_reads/processed_', basename(fastq_files))
@@ -125,11 +125,11 @@ dir.create('outputs/processed_reads', showWarnings = FALSE)
 preprocessReads(fastq_files, trimmed_file_names, 
                 minLength = 40,
                 nBases = 1,
-                Lpattern = 'ACGATAAATGCGAAAACTCTA',
+                Lpattern = 'CCAGGGTTTTCGCATTTATCG',
                 )
 preprocessReads(trimmed_file_names, output_file_names,
                 truncateEndBases = 4,
-                Lpattern = 'ACGATAAATGCGAAAACACGT')
+                Lpattern = 'CCGAGTCTTGTGTCCCAGTTA')
 ```
 
 # Assembly
@@ -140,11 +140,12 @@ Using flye from a conda environment, assemble a genome
 #5 rounds of polishing will be used
 polishing_rounds <- 5
 dir.create('outputs/flye_outputs', showWarnings = FALSE)
-for(file in list.files(pathway)){
-  if(str_detect(file, ".gz$")){
-    file_name <- str_remove(file, '.fastq.gz')
+for(file in list.files('outputs/processed_reads')){
+  file_name <- str_remove(file, '.fastq.gz')
+  file_name <- str_remove(file_name, 'processed_')
+  if(!dir.exists(paste0('outputs/flye_outputs/', str_remove(file_name, '2026')))){
     dir.create(paste0('outputs/flye_outputs/', file_name))
-    print(paste0("flye --nano-hq ", pathway, '/', file, " --out-dir outputs/flye_outputs/", file_name, " --threads 8 --iterations ", polishing_rounds), quote = FALSE)
+    print(paste0('flye --nano-hq outputs/processed_reads/processed_', file_name, '.fastq.gz outputs/processed_reads/processed_', file_name, '2026.fastq.gz --out-dir outputs/flye_outputs/', file_name, ' --threads 8 --iterations ', polishing_rounds), quote = FALSE)
   }
 }
 ```
@@ -160,8 +161,8 @@ dir.create('outputs/medaka/round2', showWarnings = FALSE)
 for(file in list.files(pathway)){
   if(str_detect(file, ".gz$")){
     file_name <- str_remove(file, '.fastq.gz')
-    dir.create(paste0('outputs/medaka/round1/', file_name), showWarnings = FALSE)
-    print(paste0('medaka_consensus -i data/raw_data/', file, ' -d outputs/flye_outputs/', file_name, '/assembly.fasta -o outputs/medaka/round1/', file_name, ' -t 8'), quote = FALSE)
+    dir.create(paste0('outputs/medaka/round1/', str_remove(file_name, '2026')), showWarnings = FALSE)
+    print(paste0('medaka_consensus -i ', pathway, '/', file, ' -d outputs/flye_outputs/', str_remove(file_name, '2026'), '/assembly.fasta -o outputs/medaka/round1/', str_remove(file_name, '2026'), ' -t 6'), quote = FALSE)
   }
 }
 
@@ -169,15 +170,15 @@ for(file in list.files(pathway)){
 for(file in list.files(pathway)){
   if(str_detect(file, ".gz$")){
     file_name <- str_remove(file, '.fastq.gz')
-    dir.create(paste0('outputs/medaka/round2/', file_name), showWarnings = FALSE)
-    print(paste0('medaka_consensus -i data/raw_data/', file, ' -d outputs/medaka/round1/', file_name, '/consensus.fasta -o outputs/medaka/round2/', file_name, ' -t 8'), quote = FALSE)
+    dir.create(paste0('outputs/medaka/round2/', str_remove(file_name, '2026')), showWarnings = FALSE)
+    print(paste0('medaka_consensus -i ', pathway, '/', file, ' -d outputs/medaka/round1/', str_remove(file_name, '2026'), '/consensus.fasta -o outputs/medaka/round2/', str_remove(file_name, '2026'), ' -t 6'), quote = FALSE)
   }
 }
 ```
 
 ## Scaffolding
 
-Using ragtag, scaffold the contigs together
+(POTENTIALLY SKIP IF VERY FRAGMENTED. DO AFTER QUAST) Using ragtag, scaffold the contigs together
 
 ```{r}
 dir.create('outputs/scaffolds', showWarnings = FALSE)
@@ -200,27 +201,33 @@ With busco, ensure that the proper docker container is available to be used. Als
 Note that -f was used to force files to be overwritten. Please be careful with where you store files.
 
 ```{r}
-#pichiaceae_odb12 database can also be considered for the current project
+#pichiaceae_odb12 database should be used for both N. holstii and P. kluyveri, while saccharomycetaceae_odb12 should be used for N. populi. 
 dir.create('outputs/busco', showWarnings = FALSE)
 for(file in list.files(pathway)){
   if(str_detect(file, ".gz$")){
     file_name <- str_remove(file, '.fastq.gz')
+    file_name <- str_remove(file_name, '2026')
     dir.create(paste0('outputs/busco/', file_name), showWarnings = FALSE)
-    print(paste0('docker run --rm -v \"$PWD\":/data -w /data ezlabgva/busco:v6.0.0_cv1 busco -i outputs/scaffolds/', file_name,'/ragtag.scaffold.fasta -o outputs/busco/', file_name, ' -l saccharomycetaceae_odb12 -m genome -c 8 -f'), quote = FALSE)
+    print(paste0('docker run --rm -v \"$PWD\":/data -w /data ezlabgva/busco:v6.0.0_cv1 busco -i outputs/medaka/round2/', file_name,'/consensus.fasta -o outputs/busco/', file_name, ' -l [] -m genome -c 8 -f'), quote = FALSE)
   }
 }
+
+# print(paste0('docker run --rm -v \"$PWD\":/data -w /data ezlabgva/busco:v6.0.0_cv1 busco -i outputs/scaffolds/', file_name,'/ragtag.scaffold.fasta -o outputs/busco/', file_name, ' -l saccharomycetaceae_odb12 -m genome -c 8 -f'), quote = FALSE)
 ```
 
-\|\|\|Using quast, evaluate the quality of the assembly
+Using quast, evaluate the quality of the assembly
+
+(do busco and quast before and after scaffold and check to see if good)
+
+(can run quast without gff file)
 
 ```{r}
-#MIGHT NOT RUN THIS? PROBABLY CAN'T WITHOUT GFF FILE
 dir.create('outputs/quast', showWarnings = FALSE)
 for(file in list.files(pathway)){
   if(str_detect(file, ".gz$")){
     file_name <- str_remove(file, '.fastq.gz')
     dir.create(paste0('outputs/quast/', file_name), showWarnings = FALSE)
-    print(paste0('docker run --rm -v \"$PWD\":/data -w /data quay.io/biocontainers/quast:5.3.0--py313pl5321h5ca1c30_2 quast.py outputs/medaka/round2/', file_name, '/consensus.fasta -r data/references/', file_name, '_genomic.fna -g data/GCF_000146045.2_R64_genomic.gff -o outputs/quast_output'), quote = FALSE)
+    print(paste0('docker run --rm -v \"$PWD\":/data -w /data quay.io/biocontainers/quast:5.3.0--py313pl5321h5ca1c30_2 quast.py outputs/medaka/round2/', file_name, '/consensus.fasta -r data/references/', file_name, '_genomic.fna -o outputs/quast_output/', file_name), quote = FALSE)
   }
 }
 
@@ -301,6 +308,51 @@ Annotate the file created via eggNOG using the reference
 
 ```
 
+```{r}
+library(tidyverse)
+library(GO.db)
+library(AnnotationDbi)
+
+eggnog_data <- read_tsv("funannotate_out/isolate_functional.emapper.annotations", comment = "##", show_col_types = FALSE) %>%
+  rename(query = `#query`)
+
+go_long <- eggnog_data %>%
+  filter(GOs != "-" & !is.na(GOs)) %>%
+  separate_rows(GOs, sep = ",")
+
+go_lookup <- AnnotationDbi::select(GO.db, keys = unique(go_long$GOs), columns = c("TERM", "ONTOLOGY"), keytype = "GOID")
+go_annotated <- left_join(go_long, go_lookup, by = c("GOs" = "GOID"))
+
+top_bp <- go_annotated %>%
+  filter(ONTOLOGY == "BP", !is.na(TERM)) %>%
+  count(TERM, sort = TRUE) %>%
+  slice_head(n = 10)
+
+ggplot(top_bp, aes(x = reorder(TERM, n), y = n)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "Top 10 Biological Process (BP) GO Terms", x = "GO Term", y = "Gene Count")
+
+```
+
+```{r}
+library(ggVennDiagram)
+
+annotation_list <- list(
+  Isolate_A = eggnog_isolateA,
+  Isolate_B = eggnog_isolateB
+)
+
+gene_sets <- lapply(annotation_list, function(df) {
+  unique(df$Preferred_name[!is.na(df$Preferred_name) & df$Preferred_name != "-"])
+})
+
+ggVennDiagram(gene_sets) +
+  scale_fill_gradient(low = "white", high = "steelblue") +
+  labs(title = "Shared vs. Unique Annotated Gene Names")
+```
+
 QUESTIONS
 
 Remember to delete these dummy
@@ -310,5 +362,3 @@ Remember to delete these dummy
 . Filtering what reads to use based on quality (suggested quality cutoff)
 
 .\<medaka model autochose 10.4 or something of that effect for all files\>
-
-.choosing pichiaceae for pichiaKluyveri and nakazawaeaHolstii (previously pichiaHolstii)
