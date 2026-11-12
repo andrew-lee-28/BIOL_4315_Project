@@ -55,7 +55,7 @@ tryCatch({
 ```
 
 ```{r}
-rqc_qc <- rqc(path = pathway, pattern = '.fastq.gz', openBrowser = FALSE, outdir = 'outputs/', workers = 3)
+rqc_qc <- rqc(path = pathway, pattern = '.fastq.gz', openBrowser = FALSE, outdir = 'outputs/rqc')
 ```
 
 ```{r}
@@ -176,6 +176,13 @@ for(file in list.files(pathway)){
 }
 ```
 
+Biostrings
+
+```{r}
+populi <- readDNAStringSet('outputs/flye_outputs/nakazawaeaPopuli/assembly.fasta')
+sort(width(populi), decreasing = TRUE)
+```
+
 ## Scaffolding
 
 (POTENTIALLY SKIP IF VERY FRAGMENTED. DO AFTER QUAST) Using ragtag, scaffold the contigs together
@@ -226,8 +233,9 @@ dir.create('outputs/quast', showWarnings = FALSE)
 for(file in list.files(pathway)){
   if(str_detect(file, ".gz$")){
     file_name <- str_remove(file, '.fastq.gz')
+    file_name <- str_remove(file_name, '2026')
     dir.create(paste0('outputs/quast/', file_name), showWarnings = FALSE)
-    print(paste0('docker run --rm -v \"$PWD\":/data -w /data quay.io/biocontainers/quast:5.3.0--py313pl5321h5ca1c30_2 quast.py outputs/medaka/round2/', file_name, '/consensus.fasta -r data/references/', file_name, '_genomic.fna -o outputs/quast_output/', file_name), quote = FALSE)
+    print(paste0('docker run --rm -v \"$PWD\":/data -w /data quay.io/biocontainers/quast:5.3.0--py313pl5321h5ca1c30_2 quast.py outputs/medaka/round2/', file_name, '/consensus.fasta -r data/references/', file_name, '_genomic.fna -o outputs/quast/', file_name), quote = FALSE)
   }
 }
 
@@ -290,6 +298,8 @@ for(file in list.files(pathway)){
     print(paste0('docker run -u $(id -u):$(id -g) --rm -v \"$PWD\":/data -w /data ', PLATFORM,  ' ', IMAGE, ' funannotate predict -i outputs/funannotate/masked_contigs/', file_name, '/assembly_masked.fasta -o outputs/funannotate/predictions/', file_name, ' -s ', file_name, ' --strain   --busco_db saccharomycetes --cpus ', CPUS), quote = FALSE)
   }
 }
+
+docker run -u $(id -u):$(id -g) --rm -v "$PWD":/data -w /data --platform linux/amd64 nextgenusfs/funannotate:v1.8.15 funannotate 
 ```
 
 # Functional Annotation
@@ -362,3 +372,5 @@ Remember to delete these dummy
 . Filtering what reads to use based on quality (suggested quality cutoff)
 
 .\<medaka model autochose 10.4 or something of that effect for all files\>
+
+.read populi consensus with biostrings, sort by size to find if one contig is mitochondrial or not
