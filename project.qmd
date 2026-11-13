@@ -257,7 +257,7 @@ for(file in list.files(pathway)){
     file_name <- str_remove(file, '.fastq.gz')
     file_name <- str_remove(file_name, '2026')
     dir.create(paste0('outputs/eggnog/', file_name), showWarnings = FALSE)
-    print(paste0('emappyer.py -i funannotate/predictions/', file_name, '/predict_results/ --output outputs/eggnog/', file_name, ' --output_dir outputs/eggnog/', file_name, ' --data_dir ', EGGNOG_DB_PATH,' -decorate_gff yes --excel -m diamond --cpu 8'), quote = FALSE)
+    print(paste0('emapper.py -i outputs/funannotate/predictions/', file_name, '/predict_results/Nakazawaea_holstii.proteins.fa --output isolate_functional --output_dir outputs/eggnog/', file_name, ' --data_dir ', EGGNOG_DB_PATH,' --decorate_gff yes --excel -m diamond --cpu 8'), quote = FALSE)
   }
 }
 ```
