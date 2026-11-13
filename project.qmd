@@ -8,8 +8,6 @@ editor: visual
 
 The libraries being used are as follows:
 
-Rqc: early quality evaluation
-
 ```{r}
 lapply(c("Rqc", "stringr", "QuasR", 'fastqcr'), library, character.only = T)
 ```
@@ -17,12 +15,6 @@ lapply(c("Rqc", "stringr", "QuasR", 'fastqcr'), library, character.only = T)
 # Non-R Tools
 
 The following tools from conda and Docker are used. Sadly, running Python commands from within R is not ideal, so this pipeline will frequently require manually running commands in terminal. However, this script will generate the lines that are required for easy copy and paste.
-
-Sequali is used to generate reports on raw data files.
-
-ragatag is used to scaffold contigs together
-
-funannotate is ran within a Docker container to prevent dependency conflicts.
 
 # File Downloads and Declaration
 
@@ -35,9 +27,7 @@ references <- 'data/references'
 
 # QC
 
-Perform early quality-control of reads to ensure that they are usable for further processing. Done by checking read quality using Rqc charts and sequali reports.
-
-## RQC
+Perform early quality-control of reads to ensure that they are usable for further processing. Done by checking read quality using sequali reports.
 
 ```{r}
 #| echo: false
@@ -52,30 +42,6 @@ tryCatch({
   paste("gzipping failed: ", e$message)
 }
 )
-```
-
-```{r}
-rqc_qc <- rqc(path = pathway, pattern = '.fastq.gz', openBrowser = FALSE, outdir = 'outputs/rqc')
-```
-
-```{r}
-#| echo: false
-rqcCycleQualityBoxPlot(rqc_qc)
-```
-
-```{r}
-#| echo: false
-rqcCycleBaseCallsLinePlot(rqc_qc)
-```
-
-```{r}
-#| echo: false
-rqcReadFrequencyPlot(rqc_qc)
-```
-
-```{r}
-fastqc_reports <- fastqc(fq.dir = pathway)
-qc_aggregate()
 ```
 
 ## Sequali
@@ -176,29 +142,6 @@ for(file in list.files(pathway)){
 }
 ```
 
-Biostrings
-
-```{r}
-populi <- readDNAStringSet('outputs/flye_outputs/nakazawaeaPopuli/assembly.fasta')
-sort(width(populi), decreasing = TRUE)
-```
-
-## Scaffolding
-
-(POTENTIALLY SKIP IF VERY FRAGMENTED. DO AFTER QUAST) Using ragtag, scaffold the contigs together
-
-```{r}
-dir.create('outputs/scaffolds', showWarnings = FALSE)
-
-for(file in list.files(pathway)){
-  if(str_detect(file, ".gz$")){
-    file_name <- str_remove(file, '.fastq.gz')
-    dir.create(paste0('outputs/scaffolds/', file_name), showWarnings = FALSE)
-    print(paste0('ragtag.py scaffold ', references, '/', file_name, '_genomic.fna outputs/medaka/round2/', file_name, '/consensus.fasta -o outputs/scaffolds/', file_name), quote = FALSE)
-  }
-}
-```
-
 # Evaluation
 
 Using busco and quast, evaluate the completeness of the assembly obtained.
@@ -218,15 +161,9 @@ for(file in list.files(pathway)){
     print(paste0('docker run --rm -v \"$PWD\":/data -w /data ezlabgva/busco:v6.0.0_cv1 busco -i outputs/medaka/round2/', file_name,'/consensus.fasta -o outputs/busco/', file_name, ' -l [] -m genome -c 8 -f'), quote = FALSE)
   }
 }
-
-# print(paste0('docker run --rm -v \"$PWD\":/data -w /data ezlabgva/busco:v6.0.0_cv1 busco -i outputs/scaffolds/', file_name,'/ragtag.scaffold.fasta -o outputs/busco/', file_name, ' -l saccharomycetaceae_odb12 -m genome -c 8 -f'), quote = FALSE)
 ```
 
 Using quast, evaluate the quality of the assembly
-
-(do busco and quast before and after scaffold and check to see if good)
-
-(can run quast without gff file)
 
 ```{r}
 dir.create('outputs/quast', showWarnings = FALSE)
@@ -238,7 +175,6 @@ for(file in list.files(pathway)){
     print(paste0('docker run --rm -v \"$PWD\":/data -w /data quay.io/biocontainers/quast:5.3.0--py313pl5321h5ca1c30_2 quast.py outputs/medaka/round2/', file_name, '/consensus.fasta -r data/references/', file_name, '_genomic.fna -o outputs/quast/', file_name), quote = FALSE)
   }
 }
-
 ```
 
 # Structural Annotation
@@ -257,6 +193,7 @@ dir.create('outputs/funannotate/cleaned_contigs', showWarnings = FALSE)
 for(file in list.files(pathway)){
   if(str_detect(file, ".gz$")){
     file_name <- str_remove(file, '.fastq.gz')
+    file_name <- str_remove(file_name, '2026')
     dir.create(paste0('outputs/funannotate/cleaned_contigs/', file_name), showWarnings = FALSE)
     print(paste0('docker run -u $(id -u):$(id -g) --rm -v \"$PWD\":/data -w /data ', PLATFORM,  ' ', IMAGE, ' funannotate clean -i outputs/medaka/round2/', file_name, '/consensus.fasta -o outputs/funannotate/cleaned_contigs/', file_name, '/assembly_clean.fasta'), quote = FALSE)
   }
@@ -269,6 +206,7 @@ dir.create('outputs/funannotate/sorted_contigs', showWarnings = FALSE)
 for(file in list.files(pathway)){
   if(str_detect(file, ".gz$")){
     file_name <- str_remove(file, '.fastq.gz')
+    file_name <- str_remove(file_name, '2026')
     dir.create(paste0('outputs/funannotate/sorted_contigs/', file_name), showWarnings = FALSE)
     print(paste0('docker run -u $(id -u):$(id -g) --rm -v \"$PWD\":/data -w /data ', PLATFORM,  ' ', IMAGE, ' funannotate sort -i outputs/funannotate/cleaned_contigs/', file_name, '/assembly_clean.fasta -o outputs/funannotate/sorted_contigs/', file_name, '/assembly_sorted.fasta'), quote = FALSE)
   }
@@ -281,6 +219,7 @@ dir.create('outputs/funannotate/masked_contigs', showWarnings = FALSE)
 for(file in list.files(pathway)){
   if(str_detect(file, ".gz$")){
     file_name <- str_remove(file, '.fastq.gz')
+    file_name <- str_remove(file_name, '2026')
     dir.create(paste0('outputs/funannotate/masked_contigs/', file_name), showWarnings = FALSE)
     print(paste0('docker run -u $(id -u):$(id -g) --rm -v \"$PWD\":/data -w /data ', PLATFORM,  ' ', IMAGE, ' funannotate mask -i outputs/funannotate/sorted_contigs/', file_name, '/assembly_sorted.fasta -o outputs/funannotate/masked_contigs/', file_name, '/assembly_masked.fasta --cpus ', CPUS), quote = FALSE)
   }
@@ -290,33 +229,40 @@ for(file in list.files(pathway)){
 ```{r}
 #Predict gene models
 #Please remember to include the specific strain used
+#Please remember to properly edit the command to seperate and capitlize the species name under -s
 dir.create('outputs/funannotate/predictions', showWarnings = FALSE)
 for(file in list.files(pathway)){
   if(str_detect(file, ".gz$")){
     file_name <- str_remove(file, '.fastq.gz')
+    file_name <- str_remove(file_name, '2026')
     dir.create(paste0('outputs/funannotate/predictions/', file_name), showWarnings = FALSE)
-    print(paste0('docker run -u $(id -u):$(id -g) --rm -v \"$PWD\":/data -w /data ', PLATFORM,  ' ', IMAGE, ' funannotate predict -i outputs/funannotate/masked_contigs/', file_name, '/assembly_masked.fasta -o outputs/funannotate/predictions/', file_name, ' -s ', file_name, ' --strain   --busco_db saccharomycetes --cpus ', CPUS), quote = FALSE)
+    print(paste0('docker run -u $(id -u):$(id -g) --rm -v \"$PWD\":/data -w /data ', PLATFORM,  ' ', IMAGE, ' funannotate predict -i outputs/funannotate/masked_contigs/', file_name, '/assembly_masked.fasta -o outputs/funannotate/predictions/', file_name, ' -s \"', file_name, '\" --busco_db dikarya --cpus ', CPUS), quote = FALSE)
   }
 }
-
-docker run -u $(id -u):$(id -g) --rm -v "$PWD":/data -w /data --platform linux/amd64 nextgenusfs/funannotate:v1.8.15 funannotate 
 ```
 
 # Functional Annotation
 
 Using eggNOG, annotate functions of genes.
 
-This first block of code is used assuming there is not an official refseq file available for your strain, but there is a relatively complete assembly. THIS CODE IS UNECESSARY IF YOU ALREADY HAVE A REFSEQ FILE
+Annotate the file created via funannotate using the reference.
 
 ```{r}
+#eval "$(conda shell.bash hook)"
+EGGNOG_DB_PATH = "eggnog_db"
 
+dir.create('outputs/eggnog', showWarnings = FALSE)
+for(file in list.files(pathway)){
+  if(str_detect(file, ".gz$")){
+    file_name <- str_remove(file, '.fastq.gz')
+    file_name <- str_remove(file_name, '2026')
+    dir.create(paste0('outputs/eggnog/', file_name), showWarnings = FALSE)
+    print(paste0('emappyer.py -i funannotate/predictions/', file_name, '/predict_results/ --output outputs/eggnog/', file_name, ' --output_dir outputs/eggnog/', file_name, ' --data_dir ', EGGNOG_DB_PATH,' -decorate_gff yes --excel -m diamond --cpu 8'), quote = FALSE)
+  }
+}
 ```
 
-Annotate the file created via eggNOG using the reference
-
-```{r}
-
-```
+Using ggplot plots, visualize the different types of genes marked via eggNOG.
 
 ```{r}
 library(tidyverse)
@@ -367,10 +313,36 @@ QUESTIONS
 
 Remember to delete these dummy
 
-. Getting rqc to work
-
-. Filtering what reads to use based on quality (suggested quality cutoff)
+\<mcGiving up on RQC, below\> . Filtering what reads to use based on quality (suggested quality cutoff)
 
 .\<medaka model autochose 10.4 or something of that effect for all files\>
 
-.read populi consensus with biostrings, sort by size to find if one contig is mitochondrial or not
+.\<almost certainly none of the contigs are mitochondrial. one is really short and probably just a spacer / surrounded by spacers\>
+
+. <yeah dummy you should run with references>
+
+. \<scaffolding is for losers with good refseq files!\>
+
+```{r}
+rqc_qc <- rqc(path = pathway, pattern = '.fastq.gz', openBrowser = FALSE, outdir = 'outputs/rqc')
+```
+
+```{r}
+#| echo: false
+rqcCycleQualityBoxPlot(rqc_qc)
+```
+
+```{r}
+#| echo: false
+rqcCycleBaseCallsLinePlot(rqc_qc)
+```
+
+```{r}
+#| echo: false
+rqcReadFrequencyPlot(rqc_qc)
+```
+
+```{r}
+fastqc_reports <- fastqc(fq.dir = pathway)
+qc_aggregate()
+```

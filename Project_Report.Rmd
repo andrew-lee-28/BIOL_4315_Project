@@ -1,16 +1,17 @@
 ---
-title: "Sexual Reproduction Capabilities of Wild Strians of Yeast Pichia Kluyveri, Nakazawaea Holstii, and Nakazawaea Populi"
+title: "Sexual Reproduction Capabilities of Wild Strains of Yeast Pichia Kluyveri, Nakazawaea Holstii, and Nakazawaea Populi"
 output: word_document
 date: "2026-11-12"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, error = TRUE, results = "hide")
+knitr::opts_chunk$set(error = TRUE)
 ```
 
 ## Abstract
 
-Hypothesis: by examining the genome of three different strains of wild yeast and comparing them to Saccharomyces cerevisiae, it will be possible to determine if the wild yeast strains could sexually reproduce under the right circumstances by finding genes involved in sexual reproduction.
+Hypothesis: by examining the genome of three different strains of wild yeast and comparing them to *Saccharomyces cerevisiae*, it will be possible to determine if the wild yeast strains could sexually reproduce under the right circumstances by finding genes involved in sexual reproduction.
 
 Relevant context: the category of yeast is incredibly broad, and thus a great variety within them. One issue is breeding, as yeast breeding can be used for commercial purposes, such as wine fermenting, or environmental purposes, such as creating yeast strains with innate resistance to heavy metals.
 
@@ -32,8 +33,7 @@ Sexual reproduction in most yeasts follows a relatively simple cycle. Haploid ye
 
 Determining if a yeast has access to sexual reproduction, or checking how they sexually reproduce, is time-consuming and strenuous. It would require access to many different environmental factors that may cause a yeast to sexually reproduce, time to observe each situation to check for sexual reproduction, and the resources to create those environments. It would be easier to examine the genome itself and identify genes that could allow for sexual reproduction.
 
-        
-The wild strains of yeast studied in this paper were Pichia kluyveri, Nakazawaea holstii (formerly known as Pichia holstii), and Nakazawaea populi (formerly known as Candida populi). P kluyveri is commonly used in industry for  
+The wild strains of yeast studied in this paper were *Pichia kluyveri*, *Nakazawaea holstii* (formerly known as *Pichia holstii*), and *Nakazawaea populi* (formerly known as *Candida populi*). *P. kluyveri* is commonly used in industry for
 
 ## Results
 
@@ -45,23 +45,106 @@ The wild strains of yeast studied in this paper were Pichia kluyveri, Nakazawaea
 
 **DNA sequencing, basecalling, and demulitplexing.** Since the yeast was also processed last year, two files were generated and used in this project for each strain. The files were joined during the assembly step. The file generated during the run this year was labelled in the format ‘strain2026’, with the file labelled in the format ‘strain’ being the file generated last year.
 
-**Quality control.** (For all of the following steps, the Quarto document used to process them can be found at <https://github.com/andrew-lee-28/BIOL_4315_Project/tree/main>) While the fastq files generated from base calling are useful for a majority of tools, some tools further along will require a zipped version, and thus gzip was used to zip the fastq files to fastq.gz files. Next, Rqc (version 1.46.0) was used to examine the read quality of the bases on each position (Supplementary Fig ), check for the proportion of bases per position (Supplementary Fig ), and check for duplications of reads (Supplementary Fig ). All of the graphics generated are to ensure the quality of the reads obtained and decide how to process the reads. sequali (version ) was used to generate a report on various quality markers, such as N50, mean and median read lengths, Q score, and per-base / per-read quality scores. Most importantly, it also highlights repeated sequences for trimming later, such as Oxford nanopore barcodes. One of the sequali reports can be found below (Supplementary Fig )
+R Libraries Used. For the project, the following R libraries were used.
+
+```{r}
+lapply(c('Rqc', 'stringr', 'QuasR', 'fastqcr', 'ggVennDiagram', 'tidyverse', 'GO.db', 'AnnotationDbi'), library, character.only = T)
+```
+
+**Quality control.** (For all of the following steps, the Quarto document used to process them can be found at <https://github.com/andrew-lee-28/BIOL_4315_Project/tree/main>) While the fastq files generated from base calling are useful for a majority of tools, some tools further along will require a zipped version, and thus gzip was used to zip the fastq files to fastq.gz files. Next, sequali (version 1.0.2) was ran inside of Docker and used to generate a report on various quality markers, such as N50, mean and median read lengths, Q score, and per-base / per-read quality scores. Most importantly, it also highlights repeated sequences for trimming later, such as Oxford nanopore barcodes. A section of one of the sequali reports can be found below (Supplementary Fig ). Instead of running Docker commands through the native R-terminal, it was preferred to run through the normal terminal and instead R was used to generate the commands for ease of copy and paste.
+
+```{r}
+pathway <- "data/raw_data_2026"
+for(file in list.files(pathway)){
+  if(str_detect(file, ".gz$")){
+    print(paste0("sequali --outdir outputs/sequali_reports ", pathway,'/' , file), quote = FALSE)
+  }
+}
+```
 
 **Read filtering and trimming.** QuasR (version 1.52.0) was used to filter through the reads and perform basic trimming. Reads were filtered by length (taking reads only 40 bases or longer to ensure incredibly short reads were not used), and number of N Bases (since Oxford nanopore was used, reads with Ns were not accepted). Reads were also trimmed at the start for Oxford nanopore barcodes (ensuring any alignments are not performed on the barcodes, as well as generally speeding up processing later), and trimmed 4 bases from the end (a steep drop in Q score was observed in the sequali reports for all files around the 4 base mark).
 
+```{r}
+fastq_files <- list.files(pathway, pattern = '.fastq.gz', full.names = TRUE)
+trimmed_file_names <- paste0('outputs/trimmed_reads/trimmed_', basename(fastq_files))
+output_file_names <- paste0('outputs/processed_reads/processed_', basename(fastq_files))
+
+#As preprocessReads breaks if it encounters a read with a equal to or less than value to truncate, two rounds of preprocessing is used. One is to reduce the sets to just reads of a minimum length of 40 with no Ns, and to remove one of the barcodes. The second is to remove the low-quality ends and the second barcode.
+
+preprocessReads(fastq_files, trimmed_file_names, 
+                minLength = 40,
+                nBases = 1,
+                Lpattern = 'CCAGGGTTTTCGCATTTATCG',
+)
+preprocessReads(trimmed_file_names, output_file_names,
+                truncateEndBases = 4,
+                Lpattern = 'CCGAGTCTTGTGTCCCAGTTA')
+```
+
 **Assembly and polishing.** flye (version 2.9.6) was used to assemble the contigs together, alongside joining the two files together. Due to the high quality of the Oxford nanopore sequences, nano-hq was used. flye was also used to conduct 5 rounds of polishing before the dedicated polishing step, increasing the confidence of the sequence. After flye, medaka (version 2.2.1) was used for two polishings. The polishing referenced the 2026 version of each strain file pair, as those reads were of slightly higher quality than the other reads. For all polishings, the default model of ‘r1041_e82_400bps_sup_v5.2.0’ was used.
 
-**Evaluation.** Busco (version 6.0.0) and quast (version 5.3.0) inside of Docker containers were used to evaluate the completeness of the assembly and examine how much scaffolding changed the quality of the assembly, whether that be for the better or for the worse. For busco, the database ‘pichiaceae_odb12’ was used for evaluation on both N. holstii and P. kluyveri, as it is much closer than the standard ‘saccharomycetaceae_odb12’, while N. populi used the standard database. As of the date of writing this paper (November 2026), there is no proper refseq-level assembly available for any of the strains used of NCBI. As such, scaffolding was considered and the steps detailed below, however ulitmately the results were not used due to being excessively poor.
+```{r}
+polishing_rounds <- 5
+dir.create('outputs/flye_outputs', showWarnings = FALSE)
+for(file in list.files('outputs/processed_reads')){
+  file_name <- str_remove(file, '.fastq.gz')
+  file_name <- str_remove(file_name, 'processed_')
+  if(!dir.exists(paste0('outputs/flye_outputs/', str_remove(file_name, '2026')))){
+    dir.create(paste0('outputs/flye_outputs/', file_name))
+    print(paste0('flye --nano-hq outputs/processed_reads/processed_', file_name, '.fastq.gz outputs/processed_reads/processed_', file_name, '2026.fastq.gz --out-dir outputs/flye_outputs/', file_name, ' --threads 8 --iterations ', polishing_rounds), quote = FALSE)
+  }
+}
+```
 
-**Scaffolding.** Ragtag (version 2.1.1) was used to perform scaffolding of the polished genomes. The references used came from the NCBI datasets for genomes (<https://www.ncbi.nlm.nih.gov/datasets/genome/>). For all three species studied, the reference genomes were not of refseq quality, and were not of particularly high quality either (Supplementary Fig ). As such, scaffolding was performed and evaluated using busco and quast, however the unscaffolded files were of higher quality and were used for annotation.
+```{r}
+#Round 1 of medaka polishing
+for(file in list.files(pathway)){
+  if(str_detect(file, ".gz$")){
+    file_name <- str_remove(file, '.fastq.gz')
+    dir.create(paste0('outputs/medaka/round1/', str_remove(file_name, '2026')), showWarnings = FALSE)
+    print(paste0('medaka_consensus -i ', pathway, '/', file, ' -d outputs/flye_outputs/', str_remove(file_name, '2026'), '/assembly.fasta -o outputs/medaka/round1/', str_remove(file_name, '2026'), ' -t 6'), quote = FALSE)
+  }
+}
+#... medaka round 2 followed the same as above
+```
 
-**Structural Annotation.** Funannotate (version 1.8.1) was used to annotate the genome for potential genes.
+**Evaluation.** Busco (version 6.0.0) and quast (version 5.3.0) inside of Docker containers were used to evaluate the completeness of the assembly and examine how much scaffolding changed the quality of the assembly, whether that be for the better or for the worse. For busco, the database ‘pichiaceae_odb12’ was used for evaluation on both *N. holstii* and *P. kluyveri*, as it is much closer than the standard ‘saccharomycetaceae_odb12’, while *N. populi* used the standard database. As of the date of writing this paper (November 2026), there is no proper refseq-level assembly available for any of the strains used of NCBI. As such, scaffolding was considered but not performed due to the fragmentation level of the reference genomes.
+
+```{r}
+#pichiaceae_odb12 database should be used for both N. holstii and P. kluyveri, while saccharomycetaceae_odb12 should be used for N. populi. 
+for(file in list.files(pathway)){
+  if(str_detect(file, ".gz$")){
+    file_name <- str_remove(file, '.fastq.gz')
+    file_name <- str_remove(file_name, '2026')
+    dir.create(paste0('outputs/busco/', file_name), showWarnings = FALSE)
+    print(paste0('docker run --rm -v \"$PWD\":/data -w /data ezlabgva/busco:v6.0.0_cv1 busco -i outputs/medaka/round2/', file_name,'/consensus.fasta -o outputs/busco/', file_name, ' -l [] -m genome -c 8 -f'), quote = FALSE)
+  }
+}
+```
+
+**Structural Annotation.** Funannotate (version 1.8.1) was used to annotate the genome for potential genes. Before using the function of 'funannotate predict', the contigs were cleaned, sorted, and soft-masked using funannotate to ensure a quicker and more accurate prediction. For 'funannotate predict' itself, the database 'dikarya' was used over 'saccharomycetes' due to issues with file permissions.
+
+```{r}
+dir.create('outputs/funannotate/predictions', showWarnings = FALSE)
+for(file in list.files(pathway)){
+  if(str_detect(file, ".gz$")){
+    file_name <- str_remove(file, '.fastq.gz')
+    file_name <- str_remove(file_name, '2026')
+    dir.create(paste0('outputs/funannotate/predictions/', file_name), showWarnings = FALSE)
+    print(paste0('docker run -u $(id -u):$(id -g) --rm -v \"$PWD\":/data -w /data ', PLATFORM,  ' ', IMAGE, ' funannotate predict -i outputs/funannotate/masked_contigs/', file_name, '/assembly_masked.fasta -o outputs/funannotate/predictions/', file_name, ' -s \"', file_name, '\" --busco_db dikarya --cpus ', CPUS), quote = FALSE)
+  }
+}
+```
 
 **Functional Annotation.** eggNOG-mapper (version 2.1.15) was used to annotate the genome with the functions of the potential genes found via funannotate.
 
 **Gene Search.** sdasdsad
 
 ## References
+
+## Supplementary Images
+
+![](images/clipboard-1742129718.png)
 
 ```{r cars}
 summary(cars)
